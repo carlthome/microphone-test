@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Microphone Test</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 500px;
+      margin: 0 auto;
+      padding: 2rem;
+      background: #1a1a2e;
+      color: #eee;
+      min-height: 100vh;
+    }
+    h1 { text-align: center; margin-bottom: 2rem; }
+    button {
+      width: 100%;
+      padding: 1rem;
+      font-size: 1.2rem;
+      border: none;
+      border-radius: 8px;
+      background: #4361ee;
+      color: white;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:hover { background: #3a56d4; }
+    button:disabled { background: #555; cursor: not-allowed; }
+    #status {
+      margin-top: 1.5rem;
+      padding: 1rem;
+      border-radius: 8px;
+      text-align: center;
+      background: #252542;
+    }
+    #meter-container {
+      margin-top: 1.5rem;
+      display: none;
+    }
+    #meter {
+      width: 100%;
+      height: 40px;
+      background: #252542;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    #meter-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #4361ee, #7209b7);
+      transition: width 0.05s;
+    }
+    #level { text-align: center; margin-top: 0.5rem; font-size: 0.9rem; color: #aaa; }
+    .success { color: #4ade80; }
+    .error { color: #f87171; }
+  </style>
+</head>
+<body>
+  <h1>🎤 Microphone Test</h1>
+  <button id="start">Start Microphone Test</button>
+  <div id="status">Click the button to test your microphone</div>
+  <div id="meter-container">
+    <div id="meter"><div id="meter-fill"></div></div>
+    <div id="level">Level: 0%</div>
+  </div>
+
+  <script>
+    const startBtn = document.getElementById('start');
+    const status = document.getElementById('status');
+    const meterContainer = document.getElementById('meter-container');
+    const meterFill = document.getElementById('meter-fill');
+    const levelText = document.getElementById('level');
+
+    let audioContext, analyser, stream;
+
+    startBtn.addEventListener('click', async () => {
+      startBtn.disabled = true;
+      status.className = '';
+      status.textContent = 'Requesting microphone access...';
+
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        status.textContent = 'Creating Web Audio context...';
+
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioContext.createMediaStreamSource(stream);
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 256;
+        source.connect(analyser);
+
+        status.innerHTML = `<span class="success">✓ Microphone working!</span><br>
+          <small>Sample rate: ${audioContext.sampleRate} Hz | State: ${audioContext.state}</small>`;
+        
+        meterContainer.style.display = 'block';
+        updateMeter();
+
+      } catch (err) {
+        status.innerHTML = `<span class="error">✗ Error: ${err.message}</span>`;
+        startBtn.disabled = false;
+      }
+    });
+
+    function updateMeter() {
+      if (!analyser) return;
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      analyser.getByteFrequencyData(data);
+      const avg = data.reduce((a, b) => a + b, 0) / data.length;
+      const level = Math.min(100, Math.round((avg / 128) * 100));
+      meterFill.style.width = level + '%';
+      levelText.textContent = `Level: ${level}%`;
+      requestAnimationFrame(updateMeter);
+    }
+  </script>
+</body>
+</html>
