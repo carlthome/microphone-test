@@ -7,8 +7,10 @@
 </head>
 <body>
   <h1>Microphone Test</h1>
-  <button id="start">Start Microphone Test</button>
-  <p id="status">Click the button to test your microphone</p>
+  <button id="start">Start</button>
+  <button id="stop" disabled>Stop</button>
+  <p id="status">Click Start to test your microphone</p>
+  <p id="timing" hidden></p>
   <div id="meter-container" hidden>
     <meter id="meter" min="0" max="100" value="0"></meter>
     <span id="level">0%</span>
@@ -16,19 +18,23 @@
 
   <script>
     const startBtn = document.getElementById('start');
+    const stopBtn = document.getElementById('stop');
     const status = document.getElementById('status');
+    const timing = document.getElementById('timing');
     const meterContainer = document.getElementById('meter-container');
     const meter = document.getElementById('meter');
     const levelText = document.getElementById('level');
 
-    let audioContext, analyser;
+    let audioContext, analyser, stream;
 
     startBtn.addEventListener('click', async () => {
+      const startTime = performance.now();
       startBtn.disabled = true;
       status.textContent = 'Requesting microphone access...';
+      timing.hidden = true;
 
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         status.textContent = 'Creating Web Audio context...';
 
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -37,14 +43,36 @@
         analyser.fftSize = 256;
         source.connect(analyser);
 
+        const elapsed = Math.round(performance.now() - startTime);
         status.textContent = `Microphone working! Sample rate: ${audioContext.sampleRate} Hz, State: ${audioContext.state}`;
+        timing.textContent = `Initialization time: ${elapsed} ms`;
+        timing.hidden = false;
         meterContainer.hidden = false;
+        stopBtn.disabled = false;
         updateMeter();
 
       } catch (err) {
         status.textContent = `Error: ${err.message}`;
         startBtn.disabled = false;
       }
+    });
+
+    stopBtn.addEventListener('click', () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        stream = null;
+      }
+      if (audioContext) {
+        audioContext.close();
+        audioContext = null;
+        analyser = null;
+      }
+      meterContainer.hidden = true;
+      meter.value = 0;
+      levelText.textContent = '0%';
+      stopBtn.disabled = true;
+      startBtn.disabled = false;
+      status.textContent = 'Stopped. Click Start to test again.';
     });
 
     function updateMeter() {
